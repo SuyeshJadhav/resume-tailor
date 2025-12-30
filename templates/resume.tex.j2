@@ -1,0 +1,77 @@
+<# Jinja2 LaTeX Template for Resume #>
+<# Custom delimiters to avoid LaTeX conflicts: <% %> for blocks, << >> for vars #>
+
+\documentclass[11pt,a4paper]{article}
+
+% === Packages ===
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{xcolor}
+
+% === Page Setup ===
+\geometry{margin=0.75in}
+\pagestyle{empty}
+
+% === Colors ===
+\definecolor{linkcolor}{HTML}{0066CC}
+\hypersetup{
+    colorlinks=true,
+    urlcolor=linkcolor,
+    linkcolor=linkcolor,
+}
+
+% === Section Formatting ===
+\titleformat{\section}{\large\bfseries\uppercase}{}{0em}{}[\titlerule]
+\titlespacing*{\section}{0pt}{12pt}{6pt}
+
+% === Commands ===
+\newcommand{\projectentry}[4]{%
+    \textbf{#1} \hfill \href{#2}{\texttt{GitHub}} \\
+    \textit{#3} \\
+    \begin{itemize}[leftmargin=*, nosep, topsep=2pt]
+        #4
+    \end{itemize}
+    \vspace{6pt}
+}
+
+% === Document ===
+\begin{document}
+
+% --- Header (customize with your info) ---
+\begin{center}
+    {\LARGE\textbf{Your Name}} \\[4pt]
+    \href{mailto:your.email@example.com}{your.email@example.com} | 
+    \href{https://linkedin.com/in/yourprofile}{LinkedIn} | 
+    \href{https://github.com/yourusername}{GitHub}
+\end{center}
+
+% --- Skills Section ---
+\section{Technical Skills}
+
+<% for category, skill_list in skills.items() %>
+\textbf{<< category >>:} << skill_list | join(', ') >> \\
+<% endfor %>
+
+% --- Projects Section ---
+\section{Projects}
+
+<% for project in projects %>
+\projectentry
+    {<< project.name | escape_latex >>}
+    {<< project.url >>}
+    {<< project.stack[:4] | join(' $\\cdot$ ') >>}
+    {<% for bullet in project.generated_bullets %>
+        \item << bullet | escape_latex >>
+    <% endfor %>}
+
+<% endfor %>
+
+% --- Generated Metadata (hidden comment) ---
+% Resume generated at: << generated_at >>
+% Matched keywords: << keywords | join(', ') >>
+
+\end{document}
