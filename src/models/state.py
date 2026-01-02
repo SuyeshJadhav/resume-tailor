@@ -12,6 +12,14 @@ class Project(BaseModel):
     url: str  # Essential for the PDF link
     stack: List[str]  # e.g. ["Python", "FastAPI"]
     description: str  # Raw summary from GitHub
+    readme_content: str = Field(
+        default="",
+        description="First ~500 chars of README for context"
+    )
+    topics: List[str] = Field(
+        default_factory=list,
+        description="GitHub topics/tags for the repo"
+    )
     generated_bullets: List[str] = Field(
         default_factory=list,
         description="The 3 specific bullets for the resume (Result, Action, Tech)"

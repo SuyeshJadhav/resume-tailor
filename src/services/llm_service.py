@@ -43,6 +43,19 @@ class SkillRankResult(BaseModel):
     )
 
 
+class JDTagResult(BaseModel):
+    """Schema for JD tagging."""
+    primary_focus: str = Field(
+        description="Primary role focus: 'ml', 'systems', 'frontend', or 'fullstack'"
+    )
+    tags: List[str] = Field(
+        description="All relevant tags extracted from JD (lowercase, no spaces)"
+    )
+    priority_tags: List[str] = Field(
+        description="Top 5 most important tags for matching"
+    )
+
+
 # === LLM Service Interface ===
 
 class LLMServiceProtocol(Protocol):
@@ -148,46 +161,106 @@ Respond in JSON format matching this schema:
         self, 
         project: Project, 
         job_description: str,
-        keywords: List[str]
+        keywords: List[str],
+        jd_tags: List[str] = None
     ) -> ProjectMatchResult:
-        """Score and generate bullets for a project against the JD."""
+        """Score and SELECT bullets for a project using tag-based matching.
+        
+        Uses master resume achievements matched by tag overlap.
+        Selects appropriate variant based on JD focus (ml, systems, frontend).
+        Falls back to generation for projects not in master resume.
+        """
+        from .master_resume_service import get_master_service, determine_focus_from_tags
+        
         llm = self._get_llm()
         parser = JsonOutputParser(pydantic_object=ProjectMatchResult)
         
-        system_prompt = """You are an expert resume writer.
-Given a GitHub project and a job description, determine how relevant the project is.
+        # Use provided tags or extract from keywords
+        jd_tags = jd_tags or [k.lower().replace(" ", "-") for k in keywords]
+        
+        # Try to get master resume data for this project
+        master_service = get_master_service()
+        project_data = master_service.get_project(project.name)
+        
+        if project_data and project_data.achievements:
+            # === TAG-BASED SELECTION MODE ===
+            logger.info(f"Using tag-based selection for {project.name}")
+            
+            # Determine focus from JD tags
+            focus = determine_focus_from_tags(jd_tags)
+            logger.info(f"Detected JD focus: {focus}")
+            
+            # Get matched bullets using tag overlap
+            bullets = master_service.get_bullets_for_jd(
+                project.name, 
+                jd_tags, 
+                focus=focus,
+                top_n=3
+            )
+            
+            # Get appropriate tech stack
+            tech_stack = project_data.get_tech_stack(focus)
+            
+            # Calculate relevance score from tag overlap
+            matched = master_service.match_achievements(project.name, jd_tags, top_n=3)
+            avg_score = sum(score for _, score in matched) / len(matched) if matched else 0.0
+            relevance_score = min(0.95, max(0.3, avg_score * 2))  # Scale to 0.3-0.95
+            
+            # Build reason
+            matched_tags = set()
+            for ach, _ in matched:
+                matched_tags.update(tag for tag in ach.tags if tag in jd_tags)
+            
+            reason = (
+                f"Selected for {focus.replace('_', ' ')}: "
+                f"matched tags [{', '.join(list(matched_tags)[:5])}]"
+            )
+            
+            return ProjectMatchResult(
+                relevance_score=relevance_score,
+                relevance_reason=reason,
+                generated_bullets=bullets[:3]
+            )
+            
+        else:
+            # === FALLBACK GENERATION MODE ===
+            logger.info(f"No master data for {project.name}, generating...")
+            
+            allowed_techs = project.stack + project.topics if project.stack else []
+            readme_section = f"\nREADME:\n{project.readme_content}" if project.readme_content else ""
+            
+            system_prompt = f"""You are an expert resume writer. Be TRUTHFUL and ACCURATE.
 
-Score from 0.0 (no match) to 1.0 (perfect match).
-Generate exactly 3 resume bullet points following the pattern:
-1. RESULT: What was achieved (with metrics if possible)
-2. ACTION: What you built/implemented
-3. TECH: Key technologies used
+ALLOWED TECHNOLOGIES: {', '.join(allowed_techs) if allowed_techs else 'Use only what appears in README/description'}
+
+RULES:
+1. Only mention technologies from the ALLOWED list or README.
+2. Do NOT fabricate metrics or achievements.
+3. Keep bullets factual based on README/description.
 
 Respond in JSON format:
-{format_instructions}"""
-        
-        user_prompt = f"""Job Description Keywords: {', '.join(keywords)}
+{{format_instructions}}"""
+            
+            user_prompt = f"""Project: {project.name}
+Technologies: {', '.join(allowed_techs)}
+Description: {project.description or 'No description'}{readme_section}
 
-Project: {project.name}
-URL: {project.url}
-Tech Stack: {', '.join(project.stack)}
-Description: {project.description}
+JD Keywords: {', '.join(keywords[:10])}
 
-Full Job Description:
-{job_description}"""
+Generate 3 factual bullet points using ONLY the allowed technologies."""
         
-        messages = [
-            SystemMessage(content=system_prompt.format(
-                format_instructions=parser.get_format_instructions()
-            )),
-            HumanMessage(content=user_prompt),
-        ]
-        
-        response = await llm.ainvoke(messages)
-        result = parser.parse(response.content)
-        
-        logger.debug(f"Project {project.name} scored {result['relevance_score']:.2f}")
-        return ProjectMatchResult(**result)
+            messages = [
+                SystemMessage(content=system_prompt.format(
+                    format_instructions=parser.get_format_instructions()
+                )),
+                HumanMessage(content=user_prompt),
+            ]
+            
+            response = await llm.ainvoke(messages)
+            result = parser.parse(response.content)
+            
+            logger.debug(f"Project {project.name} scored {result['relevance_score']:.2f}")
+            return ProjectMatchResult(**result)
     
     async def rerank_skills(
         self,
@@ -199,18 +272,27 @@ Full Job Description:
         llm = self._get_llm()
         parser = JsonOutputParser(pydantic_object=SkillRankResult)
         
-        system_prompt = """You are an expert resume optimizer.
+        # Get exact category names for enforcement
+        category_names = list(skills.keys())
+        
+        system_prompt = f"""You are an expert resume optimizer.
 Given a candidate's skills (grouped by category) and a job description,
 re-order the skills WITHIN each category so the most relevant appear first.
 
-Do NOT add or remove skills. Only reorder within each category.
+CRITICAL RULES:
+1. You MUST use EXACTLY these category names: {category_names}
+2. Do NOT add new categories.
+3. Do NOT remove categories.
+4. Do NOT add new skills that aren't in the original list.
+5. Do NOT remove skills from the original list.
+6. ONLY reorder skills within each category.
 
 Respond in JSON format:
-{format_instructions}"""
+{{format_instructions}}"""
         
         user_prompt = f"""Job Keywords: {', '.join(keywords)}
 
-Current Skills:
+Current Skills (ordered by category):
 {skills}
 
 Job Description:
@@ -226,5 +308,23 @@ Job Description:
         response = await llm.ainvoke(messages)
         result = parser.parse(response.content)
         
-        logger.info("Skills reranked by JD relevance")
-        return SkillRankResult(**result)
+        # Post-process: enforce original categories only
+        validated_skills = {}
+        for cat in category_names:
+            if cat in result['reranked_skills']:
+                # Only keep skills that were in original
+                original_set = set(skills[cat])
+                validated_skills[cat] = [
+                    s for s in result['reranked_skills'][cat] 
+                    if s in original_set
+                ]
+                # Add any missing skills at the end
+                for s in skills[cat]:
+                    if s not in validated_skills[cat]:
+                        validated_skills[cat].append(s)
+            else:
+                # Category missing from LLM output, keep original order
+                validated_skills[cat] = skills[cat]
+        
+        logger.info("Skills reranked by JD relevance (validated)")
+        return SkillRankResult(reranked_skills=validated_skills)

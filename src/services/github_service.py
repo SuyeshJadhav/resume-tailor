@@ -108,34 +108,48 @@ class GitHubService:
         return repos
     
     async def get_commit_count(self, repo_name: str) -> int:
-        """Get the commit count for a repository.
+        """Get the commit count for a repository by the configured user.
         
-        Uses the contributors endpoint which includes commit counts.
-        Falls back to listing commits if needed.
+        Uses the commits API with author filter to correctly count
+        commits in forks where the user has contributed.
         """
         if not self._client:
             raise GitHubServiceError("Service not initialized.")
         
         try:
+            # Use commits API with author filter - works for forks too
             response = await self._client.get(
-                f"/repos/{self.config.username}/{repo_name}/contributors",
-                params={"per_page": 1},
+                f"/repos/{self.config.username}/{repo_name}/commits",
+                params={
+                    "author": self.config.username,
+                    "per_page": 1,  # We just need the count from headers
+                },
             )
+            
+            if response.status_code == 409:
+                # Empty repository
+                return 0
+            
             response.raise_for_status()
             
-            contributors = response.json()
-            if contributors:
-                # Return commits by the repo owner
-                owner_commits = next(
-                    (c["contributions"] for c in contributors 
-                     if c["login"].lower() == self.config.username.lower()),
-                    0
-                )
-                return owner_commits
-        except httpx.HTTPStatusError:
-            logger.warning(f"Could not get contributors for {repo_name}")
-        
-        return 0
+            # GitHub returns pagination info in Link header
+            # Format: <url>; rel="last", page=N
+            link_header = response.headers.get("Link", "")
+            
+            if "last" in link_header:
+                # Extract page number from last link
+                import re
+                match = re.search(r'page=(\d+)>; rel="last"', link_header)
+                if match:
+                    return int(match.group(1))
+            
+            # If no "last" link, count is <= per_page
+            commits = response.json()
+            return len(commits) if isinstance(commits, list) else 0
+            
+        except httpx.HTTPStatusError as e:
+            logger.warning(f"Could not get commits for {repo_name}: {e}")
+            return 0
     
     async def get_languages(self, repo_name: str) -> List[str]:
         """Get the programming languages used in a repository."""
@@ -151,6 +165,54 @@ class GitHubService:
         # Return languages sorted by bytes of code (descending)
         return list(languages.keys())
     
+    async def get_readme(self, repo_name: str, max_chars: int = 500) -> str:
+        """Get the README content for a repository (truncated).
+        
+        Returns first ~500 chars to provide context without overwhelming LLM.
+        """
+        if not self._client:
+            raise GitHubServiceError("Service not initialized.")
+        
+        try:
+            response = await self._client.get(
+                f"/repos/{self.config.username}/{repo_name}/readme",
+                headers={"Accept": "application/vnd.github.raw+json"},
+            )
+            
+            if response.status_code == 404:
+                return ""
+            
+            response.raise_for_status()
+            content = response.text
+            
+            # Truncate and clean up
+            if len(content) > max_chars:
+                content = content[:max_chars] + "..."
+            
+            return content
+            
+        except httpx.HTTPStatusError:
+            logger.debug(f"No README for {repo_name}")
+            return ""
+    
+    async def get_topics(self, repo_name: str) -> List[str]:
+        """Get GitHub topics/tags for a repository."""
+        if not self._client:
+            raise GitHubServiceError("Service not initialized.")
+        
+        try:
+            response = await self._client.get(
+                f"/repos/{self.config.username}/{repo_name}/topics",
+                headers={"Accept": "application/vnd.github+json"},
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            return data.get("names", [])
+            
+        except httpx.HTTPStatusError:
+            return []
+    
     async def filter_and_extract(
         self, 
         repos: List[Dict[str, Any]]
@@ -158,6 +220,7 @@ class GitHubService:
         """Filter repositories and extract Project models.
         
         Applies configured filters:
+        - Profile README repos (name == username)
         - Minimum commit threshold
         - Fork exclusion
         - Archive exclusion
@@ -171,33 +234,66 @@ class GitHubService:
         projects: List[Project] = []
         
         for repo in repos:
+            repo_name = repo["name"]
+            
+            # Skip profile README repos (username/username)
+            if repo_name.lower() == self.config.username.lower():
+                logger.debug(f"Skipping profile README: {repo_name}")
+                continue
+            
             # Apply exclusion filters
             if self.config.exclude_forks and repo.get("fork", False):
-                logger.debug(f"Skipping fork: {repo['name']}")
+                logger.debug(f"Skipping fork: {repo_name}")
                 continue
                 
             if self.config.exclude_archived and repo.get("archived", False):
-                logger.debug(f"Skipping archived: {repo['name']}")
+                logger.debug(f"Skipping archived: {repo_name}")
                 continue
             
+            # Date filter - skip old repos
+            if self.config.min_updated_year:
+                updated_at = repo.get("pushed_at", repo.get("updated_at", ""))
+                if updated_at:
+                    try:
+                        from datetime import datetime
+                        update_year = datetime.fromisoformat(updated_at.replace("Z", "+00:00")).year
+                        if update_year < self.config.min_updated_year:
+                            logger.debug(f"Skipping old repo: {repo_name} (last updated {update_year})")
+                            continue
+                    except (ValueError, AttributeError):
+                        pass
+            
             # Get commit count
-            commit_count = await self.get_commit_count(repo["name"])
+            commit_count = await self.get_commit_count(repo_name)
             
             if commit_count < self.config.min_commits:
                 logger.debug(
-                    f"Skipping {repo['name']}: {commit_count} commits "
+                    f"Skipping {repo_name}: {commit_count} commits "
                     f"< {self.config.min_commits} minimum"
                 )
                 continue
             
-            # Get languages for stack
-            languages = await self.get_languages(repo["name"])
+            # Get enriched metadata
+            languages = await self.get_languages(repo_name)
+            readme = await self.get_readme(repo_name)
+            topics = await self.get_topics(repo_name)
+            
+            # README quality filter
+            if self.config.min_readme_length > 0:
+                if len(readme) < self.config.min_readme_length:
+                    logger.debug(
+                        f"Skipping {repo_name}: README too short "
+                        f"({len(readme)} < {self.config.min_readme_length} chars)"
+                    )
+                    continue
             
             project = Project(
-                name=repo["name"],
+                name=repo_name,
                 url=repo["html_url"],
                 stack=languages,
                 description=repo.get("description") or "",
+                readme_content=readme,
+                topics=topics,
                 commit_count=commit_count,
             )
             

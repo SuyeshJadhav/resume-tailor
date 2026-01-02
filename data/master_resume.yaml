@@ -1,0 +1,146 @@
+# Master Resume Data - Tag-Based System
+# Each achievement has tags for matching and variants for different role focuses
+
+tag_vocabulary:
+  # Systems/Backend
+  systems: ["backend", "distributed", "microservices", "apis", "caching", "databases", "latency"]
+  # Machine Learning
+  ml: ["llm", "nlp", "embeddings", "inference", "transformers", "ml-ops", "agents"]
+  # Frontend
+  frontend: ["react", "ui", "visualization", "d3js", "components", "nextjs"]
+  # Performance
+  performance: ["latency", "throughput", "optimization", "scale", "speedup"]
+  # Data
+  data: ["pipelines", "etl", "analytics", "data-processing"]
+
+projects:
+  AI_Assistant:
+    display_name: "AI Assistant"
+    github_url: "https://github.com/SuyeshJadhav/AI_Assistant"
+    tech_stack:
+      default: "Python, FastAPI, Llama 3.2, ChromaDB, React Native"
+      ml_focus: "Python, Ollama, Llama 3.2, ChromaDB, LangChain"
+      systems_focus: "Python, FastAPI, SQLite, React Native"
+
+    achievements:
+      - id: "throughput_optimization"
+        metric: "90 tokens/sec"
+        tags: ["llm", "inference", "gpu", "optimization", "performance"]
+        variants:
+          default: "Built a privacy-first local assistant using **Ollama**, optimizing inference to achieve **90 tokens/sec** throughput by fine-tuning prompts and offloading **Llama 3.2 1B** to an RTX 3050 GPU."
+          ml_focus: "Optimized LLM inference pipeline to **90 tokens/sec** on consumer GPU through prompt engineering, batch processing, and **Llama 3.2 1B** quantization strategies."
+          systems_focus: "Engineered low-latency inference service achieving **90 tokens/sec** throughput with memory-efficient model loading and GPU resource management."
+
+      - id: "agent_architecture"
+        metric: "14 autonomous tools"
+        tags: ["agents", "architecture", "tooling", "llm", "python"]
+        variants:
+          default: "Engineered a custom **ReAct agent architecture** with a decorator-based tool registry and **14 autonomous tools**, utilizing heuristic loop detection to prevent infinite reasoning cycles."
+          ml_focus: "Designed **ReAct agent** framework with **14 autonomous tools** for multi-step reasoning, implementing chain-of-thought prompting and self-correction loops."
+          systems_focus: "Built modular agent framework with **14 pluggable tools**, decorator-based registration, and circuit-breaker patterns for fault tolerance."
+
+      - id: "memory_system"
+        metric: "<5ms latency, 1000x speedup"
+        tags: ["backend", "caching", "databases", "performance", "sqlite", "chromadb"]
+        variants:
+          default: "Implemented a **hybrid memory system** using **SQLite WAL journaling** (<5ms) and **ChromaDB** (<3ms), integrated with a **TTL-based cache** for a **1000x speedup** on profile lookups."
+          ml_focus: "Built semantic memory layer with **ChromaDB** vector store (<3ms retrieval) and episodic cache achieving **1000x speedup** on context lookups."
+          systems_focus: "Designed tiered caching architecture with **SQLite WAL** (<5ms writes) and in-memory TTL cache for **1000x speedup** on hot-path queries."
+
+  TweetScape:
+    display_name: "TweetScape - Full-Stack Intelligence Platform"
+    github_url: "https://github.com/SuyeshJadhav/TweetScape"
+    tech_stack:
+      default: "React 19, FastAPI, D3.js, SQLite, Transformers"
+      ml_focus: "Python, FastAPI, Transformers, UMAP, KeyBERT"
+      systems_focus: "FastAPI, React 19, SQLite, D3.js"
+      frontend_focus: "React 19, D3.js, TypeScript"
+
+    achievements:
+      - id: "nlp_pipeline"
+        metric: "500+ texts/sec"
+        tags: ["nlp", "embeddings", "ml", "pipelines", "fastapi", "backend", "transformers"]
+        variants:
+          default: "Built a social media analytics platform using **FastAPI** and **React 19**, orchestrating a 4-model NLP pipeline (embeddings at **500+ texts/sec**) for real-time clustering of unstructured data."
+          ml_focus: "Orchestrated 4-model NLP pipeline achieving **500+ texts/sec** embedding throughput with transformer-based sentiment analysis and 7-class emotion classification."
+          systems_focus: "Designed async **FastAPI** inference service processing **500+ texts/sec** through parallelized multi-model pipeline with batched requests."
+
+      - id: "cache_optimization"
+        metric: "7x speedup, <1ms lookups"
+        tags: ["caching", "sqlite", "performance", "optimization", "backend", "umap"]
+        variants:
+          default: "Designed a modular pipeline with **SQLite query caching** (<1ms lookups, **7x speedup**) and deduplication for 1000+ records, utilizing **UMAP reduction** (384D→2D) and KeyBERT topic extraction."
+          ml_focus: "Implemented **UMAP dimensionality reduction** (384D→2D) with **SQLite caching** achieving **7x speedup** on embedding similarity lookups and KeyBERT topic modeling."
+          systems_focus: "Built query caching layer with **<1ms lookups** and **7x throughput improvement** using SQLite WAL mode and LRU eviction."
+
+      - id: "visualization"
+        metric: "sentiment + 7-class emotion"
+        tags: ["d3js", "visualization", "frontend", "react", "analytics"]
+        variants:
+          default: "Developed a custom **D3.js force-directed simulation** with physics-based \"tug of war\" layout, mapping sentiment polarity and 7-class emotion for intuitive visualization of discourse polarization."
+          frontend_focus: "Built interactive **D3.js** force-graph with real-time physics simulation, rendering sentiment polarity and 7-class emotion clusters with smooth transitions."
+
+  WrikiCafePlus:
+    display_name: "WolfCafe+ - Scalable Full-Stack Dining Platform"
+    github_url: "https://github.com/SuyeshJadhav/WrikiCafePlus"
+    tech_stack:
+      default: "React, Node.js, Express, MongoDB, Jest, CI/CD"
+      systems_focus: "Node.js, Express, MongoDB, Redis, JWT"
+      frontend_focus: "React, Redux, TypeScript"
+
+    achievements:
+      - id: "api_performance"
+        metric: "~2ms latency, ~450 req/sec"
+        tags: ["backend", "apis", "performance", "nodejs", "express", "latency", "throughput"]
+        variants:
+          default: "Architected a full-stack application managing 8+ data models, optimizing API endpoints to achieve **~2ms average latency** and **~450 req/sec** throughput."
+          systems_focus: "Designed RESTful API layer achieving **~2ms P50 latency** and **~450 req/sec** throughput on Node.js/Express with connection pooling."
+
+      - id: "mongodb_optimization"
+        metric: "sub-5ms retrieval"
+        tags: ["mongodb", "databases", "aggregation", "backend", "optimization"]
+        variants:
+          default: "Engineered a collaborative ordering system and hybrid **Smart Recommendation** engine using optimized **MongoDB aggregation pipelines** for **sub-5ms** complex data retrieval."
+          systems_focus: "Optimized **MongoDB** queries with compound indexes and aggregation pipelines achieving **sub-5ms** retrieval on 100K+ document collections."
+
+      - id: "react_components"
+        metric: "20+ reusable components"
+        tags: ["react", "frontend", "components", "ui", "typescript"]
+        variants:
+          default: "Developed a modular interface with **20+ reusable React components**, implementing **optimistic UI updates** to eliminate perceived latency during complex state changes."
+          frontend_focus: "Built component library with **20+ reusable React components**, implementing optimistic updates, skeleton loading, and error boundaries."
+
+      - id: "testing"
+        metric: ">85% test coverage"
+        tags: ["testing", "jest", "quality", "backend", "ci-cd"]
+        variants:
+          default: "Designed a RESTful API secured via **JWT**, maintaining system reliability with a **Jest/Supertest** benchmark suite achieving **>85% test coverage**."
+
+  plagiarism-detection:
+    display_name: "PlagiarismShield"
+    github_url: "https://github.com/SuyeshJadhav/plagiarism-detection"
+    tech_stack:
+      default: "NextJs, FastAPI, MongoDB, Python, PyTorch"
+      ml_focus: "Python, PyTorch, BERT, TF-IDF, DetectGPT"
+      systems_focus: "FastAPI, MongoDB, Next.js"
+
+    achievements:
+      - id: "hybrid_detection"
+        metric: "20% higher accuracy"
+        tags: ["nlp", "bert", "ml", "pytorch", "pipelines", "transformers"]
+        variants:
+          default: "Implemented a hybrid pipeline combining **TF-IDF, BERT embeddings, and DetectGPT**, achieving **20% higher accuracy** than baseline methods."
+          ml_focus: "Designed multi-stage detection pipeline with **TF-IDF sparse retrieval**, **BERT semantic similarity**, and **DetectGPT** zero-shot classification, achieving **20% accuracy improvement**."
+
+      - id: "api_optimization"
+        metric: "1.8s → 0.9s (50% reduction)"
+        tags: ["fastapi", "mongodb", "backend", "optimization", "performance"]
+        variants:
+          default: "Optimized backend queries with **FastAPI** and **MongoDB indexing**, reducing average response time from **1.8s to 0.9s** (50% improvement)."
+          systems_focus: "Optimized **FastAPI** endpoints with async processing and **MongoDB** compound indexes, achieving **50% latency reduction** (1.8s → 0.9s)."
+
+      - id: "nextjs_frontend"
+        metric: "file uploads, real-time results"
+        tags: ["nextjs", "frontend", "react", "ui"]
+        variants:
+          default: "Developed a responsive **Next.js** frontend supporting file uploads, section-based analysis, and real-time detection results with progress streaming."

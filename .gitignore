@@ -1,32 +1,29 @@
-# Byte-compiled / optimized
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
 
 # Virtual environments
 venv/
 .venv/
-env/
 
-# Environment variables
+# Environment variables (contains API keys)
 .env
 
-# Output artifacts
+# Output artifacts (generated per run)
 output/
 *.pdf
 *.aux
 *.log
 *.out
+*.toc
+*.synctex.gz
 
 # IDE
 .vscode/
 .idea/
 *.swp
-
-# Build
-*.egg-info/
-dist/
-build/
 
 # Testing
 .pytest_cache/
@@ -35,3 +32,10 @@ htmlcov/
 
 # Type checking
 .mypy_cache/
+
+# Logs
+pipeline_output.txt
+
+# OS files
+.DS_Store
+Thumbs.db

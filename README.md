@@ -64,7 +64,7 @@ resume-tailor/
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/resume-tailor.git
+git clone https://github.com/SuyeshJadhav/resume-tailor.git
 cd resume-tailor
 
 # Create virtual environment

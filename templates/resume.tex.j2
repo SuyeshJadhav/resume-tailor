@@ -53,7 +53,7 @@
 \section{Technical Skills}
 
 <% for category, skill_list in skills.items() %>
-\textbf{<< category >>:} << skill_list | join(', ') >> \\
+\textbf{<< category | escape_latex >>:} << skill_list | escape_latex_join >> \\
 <% endfor %>
 
 % --- Projects Section ---
@@ -63,7 +63,7 @@
 \projectentry
     {<< project.name | escape_latex >>}
     {<< project.url >>}
-    {<< project.stack[:4] | join(' $\\cdot$ ') >>}
+    {<< project.stack[:4] | escape_latex_join(' $\\cdot$ ') >>}
     {<% for bullet in project.generated_bullets %>
         \item << bullet | escape_latex >>
     <% endfor %>}

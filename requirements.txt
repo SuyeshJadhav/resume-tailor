@@ -7,11 +7,11 @@ python-dotenv>=1.0.0
 tenacity>=8.2.0
 
 # LLM integrations
-langchain-core>=0.1.0
-langchain-openai>=0.0.5
+# langchain-core>=0.1.0
+# langchain-openai>=0.0.5
 
 # Optional: Alternative LLM providers (uncomment as needed)
-# langchain-ollama>=0.0.1
+langchain-ollama>=0.0.1
 # langchain-groq>=0.0.1
 
 # Development

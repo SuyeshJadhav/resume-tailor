@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
+import os
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -41,8 +42,11 @@ def create_jinja_env(template_dir: Path) -> Environment:
 
 
 def escape_latex(text: str) -> str:
-    """Escape special LaTeX characters in user content."""
-    replacements = {
+    if not isinstance(text, str):
+        text = str(text)
+    
+    # Map of characters that MUST be escaped for LaTeX
+    mapping = {
         "&": r"\&",
         "%": r"\%",
         "$": r"\$",
@@ -54,9 +58,15 @@ def escape_latex(text: str) -> str:
         "^": r"\textasciicircum{}",
         "\\": r"\textbackslash{}",
     }
-    for char, escaped in replacements.items():
-        text = text.replace(char, escaped)
-    return text
+    
+    # We use a regex to replace everything in one pass to avoid double-escaping
+    import re
+    regex = re.compile(r"([&%$#_{}~^\\])")
+    return regex.sub(lambda match: mapping[match.group()], text)
+
+def escape_latex_join(items: list, separator: str = ", ") -> str:
+    """Escape and join a list of items."""
+    return separator.join(escape_latex(str(item)) for item in items)
 
 
 async def build_resume(
@@ -65,11 +75,9 @@ async def build_resume(
 ) -> ResumeState:
     """BUILD stage: Render template and compile PDF.
     
-    This stage:
-    1. Loads the Jinja2 LaTeX template
-    2. Renders with selected projects and reranked skills
-    3. Writes the .tex file to output directory
-    4. Compiles to PDF using Tectonic
+    Supports two modes:
+    1. Single template mode: Renders one .tex.j2 file as complete resume
+    2. Modular mode: Renders partial .j2 templates in src/ folder, then compiles main resume.tex
     
     Args:
         state: Current pipeline state with selected_projects
@@ -87,20 +95,21 @@ async def build_resume(
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Load template
-    template_dir = template_path.parent
-    template_name = template_path.name
-    
     if not template_path.exists():
         raise BuildError(f"Template not found: {template_path}")
     
-    logger.info(f"Loading template: {template_path}")
+    template_dir = template_path.parent
+    
+    # Check if this is a modular template (has src/ folder with .j2 files)
+    src_dir = template_dir / "src"
+    is_modular = src_dir.exists() and any(src_dir.glob("*.j2"))
+    
+    # Create Jinja environment
     env = create_jinja_env(template_dir)
     env.filters["escape_latex"] = escape_latex
+    env.filters["escape_latex_join"] = escape_latex_join
     
-    template = env.get_template(template_name)
-    
-    # Prepare template context
+    # Template context
     context = {
         "skills": state.reranked_skills or state.current_skills,
         "projects": state.selected_projects,
@@ -108,21 +117,47 @@ async def build_resume(
         "generated_at": datetime.now().isoformat(),
     }
     
-    # Render template
-    logger.info("Rendering LaTeX template...")
-    try:
-        rendered = template.render(**context)
-    except Exception as e:
-        raise BuildError(f"Template rendering failed: {e}") from e
-    
-    # Write .tex file
-    tex_path = output_dir / "resume.tex"
-    tex_path.write_text(rendered, encoding="utf-8")
-    logger.info(f"Wrote LaTeX source: {tex_path}")
-    
-    # Compile with Tectonic
-    logger.info("Compiling PDF with Tectonic...")
-    pdf_path = await compile_with_tectonic(tex_path, config.build.tectonic_path)
+    if is_modular:
+        # Modular mode: render partial templates in-place
+        logger.info(f"Modular template mode: rendering partials in {src_dir}")
+        
+        # Create env for src/ subdirectory
+        src_env = create_jinja_env(src_dir)
+        src_env.filters["escape_latex"] = escape_latex
+        src_env.filters["escape_latex_join"] = escape_latex_join
+        
+        for j2_file in src_dir.glob("*.j2"):
+            template = src_env.get_template(j2_file.name)
+            rendered = template.render(**context)
+            
+            # Write to .tex file (remove .j2 extension)
+            tex_name = j2_file.stem  # e.g., "projects.tex"
+            tex_path = src_dir / tex_name
+            tex_path.write_text(rendered, encoding="utf-8")
+            logger.info(f"Rendered partial: {tex_name}")
+        
+        # Compile the main resume.tex
+        main_tex = template_path
+        logger.info(f"Compiling main template: {main_tex}")
+        pdf_path = await compile_with_tectonic(main_tex, config.build.tectonic_path)
+        
+    else:
+        # Single template mode: render complete resume
+        logger.info(f"Single template mode: {template_path}")
+        template = env.get_template(template_path.name)
+        
+        try:
+            rendered = template.render(**context)
+        except Exception as e:
+            raise BuildError(f"Template rendering failed: {e}") from e
+        
+        # Write .tex file to output
+        tex_path = output_dir / "resume.tex"
+        tex_path.write_text(rendered, encoding="utf-8")
+        logger.info(f"Wrote LaTeX source: {tex_path}")
+        
+        # Compile with Tectonic
+        pdf_path = await compile_with_tectonic(tex_path, config.build.tectonic_path)
     
     logger.info(f"Resume generated: {pdf_path}")
     return state
@@ -165,6 +200,7 @@ async def compile_with_tectonic(
             capture_output=True,
             text=True,
             timeout=120,  # 2 minute timeout
+            cwd=tex_path.parent,  # Run from template directory for correct relative paths
         )
         
         if result.returncode != 0:

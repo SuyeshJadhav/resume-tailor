@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 from typing import Literal, Optional
 from pathlib import Path
+from datetime import datetime
 
 
 class GitHubConfig(BaseModel):
@@ -20,6 +21,14 @@ class GitHubConfig(BaseModel):
     exclude_archived: bool = Field(
         default=True,
         description="Whether to exclude archived repositories"
+    )
+    min_updated_year: Optional[int] = Field(
+        default=None,
+        description="Minimum year for last update (e.g., 2022 to exclude older projects)"
+    )
+    min_readme_length: int = Field(
+        default=0,
+        description="Minimum README character length (e.g., 100 to filter sparse projects)"
     )
 
 
